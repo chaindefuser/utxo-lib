@@ -59,7 +59,7 @@
     "cashaddress": "^1.1.0",
     "create-hash": "^1.2.0",
     "create-hmac": "^1.1.7",
-    "ecpair": "npm:@bitgo/ecpair@2.1.0-rc.0",
+    "ecpair": "github:chaindefuser/ecpair",
     "elliptic": "^6.5.2",
     "fastpriorityqueue": "^0.7.1",
     "mocha": "^11.1.0",
