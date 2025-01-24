@@ -24,7 +24,6 @@ function ECPairFactory(ecc) {
     types.typeforce(types.Buffer256bit, buffer);
     if (!ecc.isPrivate(buffer))
       throw new TypeError('Private key not in range [1, n)');
-    types.typeforce(isOptions, options);
     return new ECPair(buffer, undefined, options);
   }
   function fromPublicKey(buffer, options) {
