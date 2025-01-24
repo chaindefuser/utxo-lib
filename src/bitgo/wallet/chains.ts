@@ -46,7 +46,7 @@ const map = new Map<ScriptType2Of3, ChainCodePair>(
     ['p2trMusig2', chainCodesP2trMusig2],
   ].map(([k, v]) => [k as ScriptType2Of3, Object.freeze(v) as ChainCodePair])
 );
-
+// @ts-ignore
 const pairs = [...map.values()];
 
 /**
@@ -75,6 +75,7 @@ export function toChainPair(v: ChainCodePair | ChainCode | ScriptType2Of3): Chai
  * @return ScriptType2Of3 for input
  */
 export function scriptTypeForChain(chain: ChainCode): ScriptType2Of3 {
+  // @ts-ignore
   for (const [scriptType, pair] of map.entries()) {
     if (pair.includes(chain)) {
       return scriptType;

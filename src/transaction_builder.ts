@@ -1017,6 +1017,7 @@ function build<TNumber extends number | bigint = number>(
     case SCRIPT_TYPES.P2MS: {
       const m = input.maxSignatures;
       if (allowIncomplete) {
+        // @ts-ignore
         signatures = signatures.map((x) => x || ops.OP_0);
       } else {
         signatures = signatures.filter((x) => x);
@@ -1075,6 +1076,7 @@ function build<TNumber extends number | bigint = number>(
     case SCRIPT_TYPES.P2TR_NS: {
       const m = input.maxSignatures;
       if (allowIncomplete) {
+        // @ts-ignore
         signatures = signatures.map((x) => x || ops.OP_0);
       } else {
         signatures = signatures.filter((x) => x);
@@ -1117,6 +1119,7 @@ function checkSignArgs<TNumber extends number | bigint = number>(
   tfMessage(typeforce.Number, signParams.vin, `sign must include vin parameter as Number (input index)`);
   tfMessage(tfFullSigner, signParams.keyPair, `sign must include keyPair parameter as Signer interface`);
   tfMessage(typeforce.maybe(typeforce.Number), signParams.hashType, `sign hashType parameter must be a number`);
+  // @ts-ignore
   const prevOutType = (inputs[signParams.vin] || []).prevOutType;
   const posType = signParams.prevOutScriptType;
   switch (posType) {
@@ -1222,6 +1225,7 @@ function trySign<TNumber extends number | bigint = number>({
   if (input.witnessVersion === 1 && ourPubKey.length === 33) ourPubKey = ourPubKey.slice(1);
   // enforce in order signing of public keys
   let signed = false;
+  // @ts-ignore
   for (const [i, pubKey] of input.pubkeys!.entries()) {
     if (!ourPubKey.equals(pubKey!)) continue;
     if (input.signatures![i] && input.signatures![i]!.length > 0) throw new Error('Signature already exists');

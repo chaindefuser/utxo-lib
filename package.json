@@ -1,5 +1,5 @@
 {
-  "name": "@bitgo/utxo-lib",
+  "name": "utxo-lib",
   "version": "11.2.1",
   "description": "Client-side Bitcoin JavaScript library",
   "main": "./dist/src/index.js",
@@ -62,16 +62,19 @@
     "ecpair": "npm:@bitgo/ecpair@2.1.0-rc.0",
     "elliptic": "^6.5.2",
     "fastpriorityqueue": "^0.7.1",
+    "mocha": "^11.1.0",
     "typeforce": "^1.11.3",
     "varuint-bitcoin": "^1.1.2"
   },
   "devDependencies": {
     "@types/elliptic": "^6.4.12",
     "@types/fs-extra": "^9.0.12",
+    "@types/jest": "^29.5.14",
     "@types/node": "^16.18.46",
     "axios": "^1.6.0",
     "debug": "^3.1.0",
-    "fs-extra": "^9.1.0"
+    "fs-extra": "^9.1.0",
+    "typescript": "^5.7.3"
   },
   "lint-staged": {
     "*.{js,ts}": [

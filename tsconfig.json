@@ -1,11 +1,26 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "baseUrl": ".",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "inlineSourceMap": true,
+    "inlineSources": true,
+    "lib": ["dom", "es2020"],
+    "module": "commonjs",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitThis": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "target": "es2020",
     "outDir": "./dist",
     "rootDir": ".",
     "esModuleInterop": false,
     "typeRoots": ["../../types", "./node_modules/@types", "../../node_modules/@types"],
-    "resolveJsonModule": true
   },
   "include": ["src/**/*", "test/**/*", "test/**/*.json"],
   "exclude": ["node_modules"]

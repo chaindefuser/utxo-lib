@@ -393,6 +393,7 @@ export function parsePsbtInput(input: PsbtInput): ParsedPsbtP2ms | ParsedPsbtTap
     };
   }
   if (parsedPubScript.scriptType === 'p2shP2pk' && (!signatures.signatures || !isTuple(signatures.signatures))) {
+    // @ts-ignore
     return {
       ...parsedPubScript,
       signatures: signatures.signatures,

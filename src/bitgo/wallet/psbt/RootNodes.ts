@@ -35,6 +35,7 @@ export function getUnsortedRootNodes(psbt: UtxoPsbt): Triple<BIP32Interface> | u
     BIP32Factory(eccLib).fromBase58(bs58check.encode(xpub.extendedPubkey))
   );
   assert(!bip32s || isTriple(bip32s), `Invalid globalXpubs in PSBT. Expected 3 or none. Got ${bip32s?.length}`);
+  // @ts-ignore
   return bip32s;
 }
 

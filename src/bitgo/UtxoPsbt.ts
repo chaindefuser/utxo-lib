@@ -269,6 +269,7 @@ export class UtxoPsbt<Tx extends UtxoTransaction<bigint> = UtxoTransaction<bigin
         txidSet.add(getOutputIdForInput(txInputs[index]).txid);
       }
     });
+    // @ts-ignore
     return [...txidSet];
   }
 
@@ -1241,7 +1242,7 @@ export class UtxoPsbt<Tx extends UtxoTransaction<bigint> = UtxoTransaction<bigin
     if (Buffer.isBuffer(params.sessionId) && params.sessionId.length !== 32) {
       throw new Error(`Invalid sessionId size ${params.sessionId.length}`);
     }
-
+    // @ts-ignore
     const inputIndexes = inputIndex === undefined ? [...Array(this.inputCount).keys()] : [inputIndex];
     inputIndexes.forEach((index) => {
       if (!this.isTaprootKeyPathInput(index)) {
