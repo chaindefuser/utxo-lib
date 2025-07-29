@@ -6,7 +6,10 @@
     "declarationMap": true,
     "inlineSourceMap": true,
     "inlineSources": true,
-    "lib": ["dom", "es2020"],
+    "lib": [
+      "dom",
+      "es2020"
+    ],
     "module": "commonjs",
     "noFallthroughCasesInSwitch": true,
     "noImplicitThis": true,
@@ -19,9 +22,16 @@
     "target": "es2020",
     "outDir": "./dist",
     "rootDir": ".",
-    "esModuleInterop": false,
-    "typeRoots": ["../../types", "./node_modules/@types", "../../node_modules/@types"],
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
   },
-  "include": ["src/**/*", "test/**/*", "test/**/*.json"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "test/**/*.json"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

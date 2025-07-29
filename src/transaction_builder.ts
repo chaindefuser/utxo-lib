@@ -27,6 +27,10 @@ const tfFullSigner = (obj: any): boolean => {
   return typeforce.Buffer(obj.publicKey) && typeof obj.sign === 'function' && typeof obj.signSchnorr === 'function';
 };
 
+console.log('HELLo');
+console.log('classify:', classify); // что именно импортируется?
+console.log('classify.types:', classify.types);
+
 const SCRIPT_TYPES = classify.types;
 
 const PREVOUT_TYPES: Set<string> = new Set([
@@ -163,7 +167,10 @@ export class TransactionBuilder<TNumber extends number | bigint = number> {
 
   // WARNING: maximumFeeRate is __NOT__ to be relied on,
   //          it's just another potential safety mechanism (safety in-depth)
-  constructor(public network: Network = networks.bitcoin, public maximumFeeRate: number = 2500) {
+  constructor(
+    public network: Network = networks.bitcoin,
+    public maximumFeeRate: number = 2500
+  ) {
     this.__PREV_TX_SET = {};
     this.__INPUTS = [];
     this.__TX = new Transaction<TNumber>();
