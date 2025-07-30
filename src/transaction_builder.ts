@@ -27,10 +27,6 @@ const tfFullSigner = (obj: any): boolean => {
   return typeforce.Buffer(obj.publicKey) && typeof obj.sign === 'function' && typeof obj.signSchnorr === 'function';
 };
 
-console.log('HELLo');
-console.log('classify:', classify); // что именно импортируется?
-console.log('classify.types:', classify.types);
-
 const SCRIPT_TYPES = classify.types;
 
 const PREVOUT_TYPES: Set<string> = new Set([
