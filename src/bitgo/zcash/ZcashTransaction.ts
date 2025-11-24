@@ -23,7 +23,7 @@ const ZIP225_VERSION_GROUP_ID = 0x26a7270a;
 const OVERWINTER_BRANCH_ID = 0x5ba81b19;
 const CANOPY_BRANCH_ID = 0xe9ff75a6;
 const NU5_BRANCH_ID = 0xc2d6d0b4;
-const NU6_BRANCH_ID = 0xc8e71055;
+const NU6_BRANCH_ID = 0x4dec4df0;
 
 export class UnsupportedTransactionError extends Error {
   constructor(message: string) {
