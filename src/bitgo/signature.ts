@@ -4,6 +4,7 @@ import { Transaction, taproot, TxOutput, ScriptSignature } from 'bitcoinjs-lib';
 
 import { UtxoTransaction } from './UtxoTransaction';
 import { UtxoTransactionBuilder } from './UtxoTransactionBuilder';
+import { ZcashTransaction } from './zcash/ZcashTransaction';
 import {
   createOutputScript2of3,
   createOutputScriptP2shP2pk,
@@ -194,7 +195,11 @@ export function getSignatureVerifications<TNumber extends number | bigint>(
       const transactionHash =
         parsedScript.scriptType === 'p2shP2wsh' || parsedScript.scriptType === 'p2wsh'
           ? transaction.hashForWitnessV0(inputIndex, parsedScript.pubScript, amount, hashType)
-          : transaction.hashForSignatureByNetwork(inputIndex, parsedScript.pubScript, amount, hashType);
+          : transaction instanceof ZcashTransaction
+            ? // Zcash v5 (ZIP-244) sighashes commit to every input's prevout; pass them explicitly
+              // rather than storing them on the caller's transaction.
+              transaction.hashForSignatureByNetwork(inputIndex, parsedScript.pubScript, amount, hashType, prevOutputs)
+            : transaction.hashForSignatureByNetwork(inputIndex, parsedScript.pubScript, amount, hashType);
       const signedBy = publicKeys.filter((publicKey) =>
         eccLib.verify(
           transactionHash,

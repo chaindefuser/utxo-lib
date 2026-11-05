@@ -220,6 +220,7 @@ export function setPsbtDefaults(
           ZcashTransaction.VERSION4_BRANCH_NU6,
           ZcashTransaction.VERSION5_BRANCH_NU5,
           ZcashTransaction.VERSION5_BRANCH_NU6,
+          ZcashTransaction.VERSION5_BRANCH_NU7,
         ].includes(version)
       ) {
         throw new Error(`invalid version`);

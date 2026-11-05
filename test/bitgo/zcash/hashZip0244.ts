@@ -3,19 +3,21 @@ import * as vectors from './fixtures/vectorsZip0244.json';
 import { UnsupportedTransactionError, ZcashTransaction } from '../../../src/bitgo';
 import { Transaction, networks } from '../../../src';
 
+// Columns of https://github.com/zcash/zcash-test-vectors/blob/master/test-vectors/json/zip_0244.json
 type Vector = [
   tx: string,
   txid: string,
   auth_digest: string,
-  transparent_input: number,
-  script_code: string,
-  amount: number,
-  sighash_all: string,
-  sighash_none: string,
-  sighash_single: string,
-  sighash_all_anyone: string,
-  sighash_none_anyone: string,
-  sighash_single_anyone: string,
+  amounts: number[],
+  script_pubkeys: string[],
+  transparent_input: number | null,
+  sighash_shielded: string,
+  sighash_all: string | null,
+  sighash_none: string | null,
+  sighash_single: string | null,
+  sighash_all_anyone: string | null,
+  sighash_none_anyone: string | null,
+  sighash_single_anyone: string | null,
 ];
 
 function parseHashType(hashTypeStr: string): number {
@@ -33,9 +35,10 @@ function runVector(v: Vector, i: number) {
     txid,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     authDigest,
+    amounts,
+    scriptPubKeys,
     transparentInput,
-    pubScriptHex,
-    amount,
+    sighashShielded,
     ...sigHashHex /* sighash_all, sighash_none, sighash_single, sighash_all_anyone, sighash_none_anyone, sighash_single_anyone */
   ] = v;
 
@@ -50,12 +53,25 @@ function runVector(v: Vector, i: number) {
         }
         throw e;
       }
+      tx.setPrevOutputs(amounts.map((value, i) => ({ value, script: Buffer.from(scriptPubKeys[i], 'hex') })));
     });
 
     it('has expected txid', function () {
       // getId() returns the reversed hash
       assert.strictEqual(tx.getHash().toString('hex'), txid);
     });
+
+    it('has expected value for shielded signature', function () {
+      // A shielded signature does not pick an input: value/script are irrelevant.
+      assert.strictEqual(
+        tx.hashForSignatureByNetwork(undefined, Buffer.of(), 0, Transaction.SIGHASH_ALL).toString('hex'),
+        sighashShielded
+      );
+    });
+
+    if (transparentInput === null) {
+      return;
+    }
 
     [
       'SIGHASH_ALL',
@@ -73,15 +89,46 @@ function runVector(v: Vector, i: number) {
         assert.strictEqual(
           tx
             .hashForSignatureByNetwork(
-              transparentInput ?? undefined,
-              pubScriptHex ? Buffer.from(pubScriptHex, 'hex') : Buffer.of(),
-              amount,
+              transparentInput,
+              Buffer.from(scriptPubKeys[transparentInput], 'hex'),
+              amounts[transparentInput],
               hashType
             )
             .toString('hex'),
           sigHashHex[i]
         );
       });
+    });
+
+    it('rejects signing without prevOutputs when there are several inputs', function (this: Mocha.Context) {
+      if (tx.ins.length < 2) {
+        this.skip();
+      }
+      const bare = tx.clone();
+      bare.prevOutputs = undefined;
+      assert.throws(
+        () =>
+          bare.hashForSignatureByNetwork(
+            transparentInput,
+            Buffer.from(scriptPubKeys[transparentInput], 'hex'),
+            amounts[transparentInput],
+            Transaction.SIGHASH_ALL
+          ),
+        /setPrevOutputs/
+      );
+    });
+
+    it('rejects a value that does not match prevOutputs', function () {
+      assert.throws(
+        () =>
+          tx.hashForSignatureByNetwork(
+            transparentInput,
+            Buffer.from(scriptPubKeys[transparentInput], 'hex'),
+            amounts[transparentInput] + 1,
+            Transaction.SIGHASH_ALL
+          ),
+        /does not match/
+      );
     });
   });
 }
