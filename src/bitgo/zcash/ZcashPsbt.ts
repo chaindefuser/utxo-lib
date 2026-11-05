@@ -66,6 +66,8 @@ export class ZcashPsbt extends UtxoPsbt<ZcashTransaction<bigint>> {
         return psbt;
       case 5:
       case ZcashTransaction.VERSION5_BRANCH_NU5:
+      case ZcashTransaction.VERSION5_BRANCH_NU6:
+      case ZcashTransaction.VERSION5_BRANCH_NU7:
         if (consensusBranchId) {
           throw new Error('Found consensus branch id in psbt global-map for version 5 Zcash transaction');
         }
@@ -114,6 +116,7 @@ export class ZcashPsbt extends UtxoPsbt<ZcashTransaction<bigint>> {
       case 5:
       case ZcashTransaction.VERSION5_BRANCH_NU5:
       case ZcashTransaction.VERSION5_BRANCH_NU6:
+      case ZcashTransaction.VERSION5_BRANCH_NU7:
         this.setVersion(5);
         break;
       default:
@@ -124,14 +127,55 @@ export class ZcashPsbt extends UtxoPsbt<ZcashTransaction<bigint>> {
     this.tx.consensusBranchId = getDefaultConsensusBranchIdForVersion(network, version);
   }
 
+  /**
+   * The v5 (ZIP-244) signature digest commits to the value and scriptPubKey of every input. The
+   * PSBT already carries them (witnessUtxo, or the previous transaction as nonWitnessUtxo), so
+   * hand them to the unsigned transaction before it is asked for a signature hash.
+   */
+  private attachPrevOutputs(): void {
+    if (this.tx.version !== 5) {
+      return;
+    }
+    // Always rebuilt from the PSBT inputs (the source of truth), so inputs added or UTXO data
+    // corrected after an earlier call are picked up. Signatures live in the PSBT, not on the
+    // unsigned tx, so replacing its prevouts is safe.
+    const txInputs = this.txInputs;
+    const prevOutputs: { value: bigint; script: Buffer }[] = [];
+    for (let i = 0; i < this.data.inputs.length; i++) {
+      const input = this.data.inputs[i];
+      if (input.witnessUtxo) {
+        prevOutputs.push({ value: input.witnessUtxo.value, script: input.witnessUtxo.script });
+      } else if (input.nonWitnessUtxo) {
+        const prevTx = ZcashTransaction.fromBuffer<bigint>(input.nonWitnessUtxo, false, 'bigint', this.tx.network);
+        if (!prevTx.getHash().equals(txInputs[i].hash)) {
+          throw new Error(`Non-witness UTXO hash for input #${i} doesn't match the hash specified in the prevout`);
+        }
+        const out = prevTx.outs[txInputs[i].index];
+        if (!out) {
+          throw new Error(
+            `Non-witness UTXO for input #${i} has no output ${txInputs[i].index} (${prevTx.outs.length} outputs)`
+          );
+        }
+        prevOutputs.push({ value: out.value, script: out.script });
+      } else {
+        // Not all prevouts are known yet; signing a multi-input tx will fail with a clear error.
+        this.tx.prevOutputs = undefined;
+        return;
+      }
+    }
+    this.tx.setPrevOutputs(prevOutputs);
+  }
+
   // For Zcash transactions, we do not have to have non-witness UTXO data for non-segwit
   // transactions because zcash hashes the value directly. Thus, it is unnecessary to have
   // the previous transaction hash on the unspent.
   signInput(inputIndex: number, keyPair: Signer, sighashTypes?: number[]): this {
+    this.attachPrevOutputs();
     return withUnsafeNonSegwit(this, super.signInput.bind(this, inputIndex, keyPair, sighashTypes));
   }
 
   validateSignaturesOfInput(inputIndex: number, validator: ValidateSigFunction, pubkey?: Buffer): boolean {
+    this.attachPrevOutputs();
     return withUnsafeNonSegwit(this, super.validateSignaturesOfInput.bind(this, inputIndex, validator, pubkey));
   }
 

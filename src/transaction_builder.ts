@@ -90,7 +90,7 @@ interface TxbOutput {
   maxSignatures?: number;
 }
 
-interface TxbSignArg<TNumber extends number | bigint = number> {
+export interface TxbSignArg<TNumber extends number | bigint = number> {
   prevOutScriptType: string;
   vin: number;
   keyPair: Signer;
@@ -634,7 +634,7 @@ function expandInput<TNumber extends number | bigint = number>(
 }
 
 // could be done in expandInput, but requires the original Transaction for hashForSignature
-function fixMultisigOrder<TNumber extends number | bigint = number>(
+export function fixMultisigOrder<TNumber extends number | bigint = number>(
   input: TxbInput<TNumber>,
   transaction: Transaction<TNumber>,
   vin: number,

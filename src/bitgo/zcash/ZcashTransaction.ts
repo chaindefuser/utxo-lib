@@ -6,9 +6,11 @@ const varuint = require('varuint-bitcoin');
 const typeforce = require('typeforce');
 
 import { networks } from '../../networks';
+import * as classify from '../../classify';
 import { UtxoTransaction, varSliceSize } from '../UtxoTransaction';
+import { toTNumber } from '../tnumber';
 import { fromBufferV4, fromBufferV5, toBufferV4, toBufferV5, VALUE_INT64_ZERO } from './ZcashBufferutils';
-import { getBlake2bHash, getSignatureDigest, getTxidDigest } from './hashZip0244';
+import { getBlake2bHash, getSignatureDigest, getTxidDigest, ZcashPrevOutput } from './hashZip0244';
 
 const ZERO = Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex');
 
@@ -24,6 +26,17 @@ const OVERWINTER_BRANCH_ID = 0x5ba81b19;
 const CANOPY_BRANCH_ID = 0xe9ff75a6;
 const NU5_BRANCH_ID = 0xc2d6d0b4;
 const NU6_BRANCH_ID = 0x37a5165b; // NU6.3 - Ironwood
+// https://zips.z.cash/zip-0259 - mainnet activation at block 3543405
+const NU7_BRANCH_ID = 0x77190ad9;
+
+/**
+ * True when the scriptCode handed to the signer is the spent coin's scriptPubKey, i.e. P2PKH or
+ * P2PK. For P2SH the scriptCode is the redeemScript, which ZIP-244 never commits to.
+ */
+function isScriptCodeAlsoScriptPubKey(script: Buffer): boolean {
+  const type = classify.output(script);
+  return type === classify.types.P2PKH || type === classify.types.P2PK;
+}
 
 export class UnsupportedTransactionError extends Error {
   constructor(message: string) {
@@ -33,12 +46,15 @@ export class UnsupportedTransactionError extends Error {
 
 export function getDefaultVersionGroupIdForVersion(version: number): number {
   switch (version) {
+    case 4:
     case 400:
     case 450:
     case 455:
       return SAPLING_VERSION_GROUP_ID;
+    case 5:
     case 500:
     case 550:
+    case 570:
       return ZIP225_VERSION_GROUP_ID;
   }
   throw new Error(`no value for version ${version}`);
@@ -64,7 +80,13 @@ export function getDefaultConsensusBranchIdForVersion(network: ZcashNetwork, ver
     case ZcashTransaction.VERSION4_BRANCH_NU6:
     case ZcashTransaction.VERSION5_BRANCH_NU6:
       // https://zips.z.cash/zip-0253
+      // Bare 4/5 keep defaulting to NU6.3: this function is not height-aware, and callers that
+      // need the NU7 branch (mainnet from block 3543405) ask for VERSION5_BRANCH_NU7 or set the
+      // branch id explicitly. v4 transactions are disallowed from NU7 onward (ZIP-2003).
       return NU6_BRANCH_ID;
+    case ZcashTransaction.VERSION5_BRANCH_NU7:
+      // https://zips.z.cash/zip-0259
+      return NU7_BRANCH_ID;
   }
   throw new Error(`no value for version ${version}`);
 }
@@ -79,6 +101,7 @@ export class ZcashTransaction<TNumber extends number | bigint = number> extends 
   static VERSION4_BRANCH_NU6 = 455;
   static VERSION5_BRANCH_NU5 = 500;
   static VERSION5_BRANCH_NU6 = 550;
+  static VERSION5_BRANCH_NU7 = 570;
 
   // 1 if the transaction is post overwinter upgrade, 0 otherwise
   overwintered = 0;
@@ -87,6 +110,12 @@ export class ZcashTransaction<TNumber extends number | bigint = number> extends 
   // Block height after which this transactions will expire, or 0 to disable expiry
   expiryHeight = 0;
   consensusBranchId: number;
+  /**
+   * The coins spent by the transparent inputs, in input order. Required to compute the v5
+   * (ZIP-244) signature digest, which commits to the value and scriptPubKey of every input.
+   * Not serialized.
+   */
+  prevOutputs?: ZcashPrevOutput<TNumber>[];
 
   constructor(
     public network: ZcashNetwork,
@@ -104,8 +133,70 @@ export class ZcashTransaction<TNumber extends number | bigint = number> extends 
       if (tx.consensusBranchId !== undefined) {
         consensusBranchId = tx.consensusBranchId;
       }
+      if (tx.prevOutputs) {
+        this.prevOutputs = tx.prevOutputs.map((p) => ({
+          script: p.script,
+          value: (amountType ? toTNumber<TNumber>(p.value, amountType) : p.value) as TNumber,
+        }));
+      }
     }
     this.consensusBranchId = consensusBranchId ?? getDefaultConsensusBranchIdForVersion(network, this.version);
+  }
+
+  /**
+   * Set the coins spent by the transparent inputs (one entry per input, in input order): their
+   * value and *scriptPubKey* (not the redeemScript for P2SH).
+   * Required before computing a v5 signature hash for a transaction with more than one input.
+   */
+  setPrevOutputs(prevOutputs: ZcashPrevOutput<TNumber>[]): void {
+    if (prevOutputs.length !== this.ins.length) {
+      throw new Error(`expected ${this.ins.length} prevOutputs, got ${prevOutputs.length}`);
+    }
+    this.prevOutputs = prevOutputs.map((p) => ({ value: p.value, script: Buffer.from(p.script) }));
+  }
+
+  /**
+   * Compute the ZIP-244 signature digest of a v5 transaction.
+   *
+   * `prevOutScript` is the *scriptCode* bitcoinjs passes for signing (for P2SH that is the
+   * redeemScript). ZIP-244 does not commit to the scriptCode at all: it commits to the
+   * scriptPubKey of every spent coin, so those are taken from `prevOutputs` whenever they are
+   * set. Without `prevOutputs` the only safe case is a single P2PKH-like input, where the
+   * scriptCode *is* the scriptPubKey.
+   */
+  private getV5SignatureDigest(
+    inIndex: number | undefined,
+    prevOutScript: Buffer,
+    value: TNumber,
+    hashType: number,
+    explicitPrevOutputs?: ZcashPrevOutput<TNumber>[]
+  ): Buffer {
+    let prevOutputs = explicitPrevOutputs ?? this.prevOutputs;
+    if (!prevOutputs) {
+      if (this.ins.length === 0 || this.isCoinbase()) {
+        prevOutputs = [];
+      } else if (this.ins.length === 1 && inIndex === 0 && isScriptCodeAlsoScriptPubKey(prevOutScript)) {
+        // Single P2PKH/P2PK input: the scriptCode bitcoinjs hands us is the scriptPubKey itself.
+        prevOutputs = [{ value, script: prevOutScript }];
+      } else {
+        throw new Error(
+          `v5 signature hash requires the value and scriptPubKey of every input ` +
+            `(P2SH inputs always, since the scriptCode is the redeemScript): call setPrevOutputs() first`
+        );
+      }
+    }
+    let scriptPubKey = prevOutScript;
+    if (inIndex !== undefined && prevOutputs.length) {
+      const own = prevOutputs[inIndex];
+      if (own === undefined) {
+        throw new Error(`no prevOutput for input ${inIndex}`);
+      }
+      if (BigInt(own.value) !== BigInt(value)) {
+        throw new Error(`prevOutputs[${inIndex}].value ${own.value} does not match the value passed for signing ${value}`);
+      }
+      scriptPubKey = own.script;
+    }
+    return getSignatureDigest(this, inIndex, scriptPubKey, value, hashType, prevOutputs);
   }
 
   static fromBuffer<TNumber extends number | bigint = number>(
@@ -290,7 +381,8 @@ export class ZcashTransaction<TNumber extends number | bigint = number> extends 
     inIndex: number | undefined,
     prevOutScript: Buffer,
     value: bigint | number | undefined,
-    hashType: number
+    hashType: number,
+    prevOutputs?: ZcashPrevOutput<TNumber>[]
   ): Buffer {
     if (value === undefined) {
       throw new Error(`must provide value`);
@@ -298,7 +390,11 @@ export class ZcashTransaction<TNumber extends number | bigint = number> extends 
 
     // https://github.com/zcash/zcash/blob/v4.5.1/src/script/interpreter.cpp#L1175
     if (this.version === 5) {
-      return getSignatureDigest(this, inIndex, prevOutScript, value, hashType);
+      if (inIndex !== undefined && inIndex >= this.ins.length) {
+        throw new Error('Input index is out of range');
+      }
+      // `prevOutputs` passed here take precedence over any stored with setPrevOutputs().
+      return this.getV5SignatureDigest(inIndex, prevOutScript, value as TNumber, hashType, prevOutputs);
     }
 
     // ZCash amounts are always within Number.MAX_SAFE_INTEGER
